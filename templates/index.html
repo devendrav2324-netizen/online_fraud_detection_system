@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fraud Detector</title>
+<style>
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    max-width: 480px;
+    margin: 60px auto;
+    color: #222;
+    background: #fafafa;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  p.sub { color: #666; margin-top: 0; margin-bottom: 24px; }
+  label { display: block; margin-top: 14px; font-size: 0.9rem; font-weight: 600; }
+  input, select {
+    width: 100%;
+    padding: 8px 10px;
+    margin-top: 4px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 0.95rem;
+  }
+  button {
+    margin-top: 24px;
+    width: 100%;
+    padding: 10px;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:hover { background: #444; }
+  #result {
+    margin-top: 24px;
+    padding: 16px;
+    border-radius: 8px;
+    display: none;
+  }
+  #result.fraud { background: #ffe5e5; border: 1px solid #ff9999; }
+  #result.legit { background: #e5ffe9; border: 1px solid #99e0a8; }
+  #result h2 { margin: 0 0 6px 0; font-size: 1.1rem; }
+  #error { color: #c0392b; margin-top: 12px; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <h1>Fraud Detector</h1>
+  <p class="sub">Enter a transaction to check whether the model flags it as fraudulent.</p>
+
+  <form id="txn-form">
+    <label>Step (hour of simulation)
+      <input type="number" name="step" value="1" required>
+    </label>
+
+    <label>Transaction type
+      <select name="type" required>
+        <option value="TRANSFER">TRANSFER</option>
+        <option value="CASH_OUT">CASH_OUT</option>
+        <option value="CASH_IN">CASH_IN</option>
+        <option value="DEBIT">DEBIT</option>
+        <option value="PAYMENT">PAYMENT</option>
+      </select>
+    </label>
+
+    <label>Amount
+      <input type="number" step="any" name="amount" value="181" required>
+    </label>
+
+    <label>Sender's balance before transaction (oldbalanceOrg)
+      <input type="number" step="any" name="oldbalanceOrg" value="181" required>
+    </label>
+
+    <label>Receiver's balance before transaction (oldbalanceDest)
+      <input type="number" step="any" name="oldbalanceDest" value="0" required>
+    </label>
+
+    <label>Flagged by rules engine already? (isFlaggedFraud)
+      <select name="isFlaggedFraud" required>
+        <option value="0">No (0)</option>
+        <option value="1">Yes (1)</option>
+      </select>
+    </label>
+
+    <button type="submit">Check Transaction</button>
+  </form>
+
+  <div id="result"></div>
+  <div id="error"></div>
+
+  <script>
+    const form = document.getElementById('txn-form');
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorDiv.textContent = '';
+      resultDiv.style.display = 'none';
+
+      const formData = new FormData(form);
+      const payload = {
+        step: formData.get('step'),
+        type: formData.get('type'),
+        amount: formData.get('amount'),
+        oldbalanceOrg: formData.get('oldbalanceOrg'),
+        oldbalanceDest: formData.get('oldbalanceDest'),
+        isFlaggedFraud: formData.get('isFlaggedFraud'),
+      };
+
+      try {
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorDiv.textContent = data.error || 'Something went wrong.';
+          return;
+        }
+
+        resultDiv.className = data.isFraud === 1 ? 'fraud' : 'legit';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+          <h2>${data.verdict}</h2>
+          <p>Fraud probability: <strong>${(data.fraud_probability * 100).toFixed(2)}%</strong></p>
+        `;
+      } catch (err) {
+        errorDiv.textContent = 'Could not reach the server.';
+      }
+    });
+  </script>
+</body>
+</html>
